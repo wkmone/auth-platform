@@ -1,0 +1,29 @@
+# Maven
+target/
+*.jar
+*.war
+
+# npm
+node_modules/
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Environment
+.env
+.env.local
+*.log
+
+# Java
+*.class
+hs_err_pid*
