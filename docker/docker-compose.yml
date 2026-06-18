@@ -4,15 +4,15 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: auth_user
-      POSTGRES_PASSWORD: auth_pass
+      POSTGRES_USER: ${DB_USER:-auth_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change_me_in_production}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U auth_user"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-auth_user}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -36,8 +36,8 @@ services:
       - "5672:5672"
       - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-change_me_in_production}
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
@@ -51,6 +51,11 @@ services:
     ports:
       - "8848:8848"
       - "9848:9848"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8848/nacos/v1/console/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # === Microservices ===
   auth-service:
@@ -60,8 +65,8 @@ services:
     ports:
       - "9001:9001"
     environment:
-      DB_USERNAME: auth_user
-      DB_PASSWORD: auth_pass
+      DB_USERNAME: ${DB_USER:-auth_user}
+      DB_PASSWORD: ${DB_PASSWORD:-change_me_in_production}
       REDIS_HOST: redis
       RABBITMQ_HOST: rabbitmq
       NACOS_ADDR: nacos:8848
@@ -73,6 +78,13 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9001/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
 
   user-service:
     build:
@@ -81,8 +93,8 @@ services:
     ports:
       - "9002:9002"
     environment:
-      DB_USERNAME: auth_user
-      DB_PASSWORD: auth_pass
+      DB_USERNAME: ${DB_USER:-auth_user}
+      DB_PASSWORD: ${DB_PASSWORD:-change_me_in_production}
       RABBITMQ_HOST: rabbitmq
       NACOS_ADDR: nacos:8848
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/user_db
@@ -91,6 +103,13 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9002/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
 
   app-service:
     build:
@@ -99,8 +118,8 @@ services:
     ports:
       - "9003:9003"
     environment:
-      DB_USERNAME: auth_user
-      DB_PASSWORD: auth_pass
+      DB_USERNAME: ${DB_USER:-auth_user}
+      DB_PASSWORD: ${DB_PASSWORD:-change_me_in_production}
       RABBITMQ_HOST: rabbitmq
       NACOS_ADDR: nacos:8848
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/app_db
@@ -109,6 +128,13 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9003/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
 
   audit-service:
     build:
@@ -117,8 +143,8 @@ services:
     ports:
       - "9004:9004"
     environment:
-      DB_USERNAME: auth_user
-      DB_PASSWORD: auth_pass
+      DB_USERNAME: ${DB_USER:-auth_user}
+      DB_PASSWORD: ${DB_PASSWORD:-change_me_in_production}
       RABBITMQ_HOST: rabbitmq
       NACOS_ADDR: nacos:8848
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/audit_db
@@ -127,6 +153,13 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9004/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
 
   notification-service:
     build:
@@ -135,8 +168,8 @@ services:
     ports:
       - "9005:9005"
     environment:
-      DB_USERNAME: auth_user
-      DB_PASSWORD: auth_pass
+      DB_USERNAME: ${DB_USER:-auth_user}
+      DB_PASSWORD: ${DB_PASSWORD:-change_me_in_production}
       RABBITMQ_HOST: rabbitmq
       NACOS_ADDR: nacos:8848
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notification_db
@@ -147,6 +180,13 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9005/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
 
   gateway:
     build:
@@ -159,8 +199,21 @@ services:
       NACOS_ADDR: nacos:8848
       AUTH_SERVICE_URL: http://auth-service:9001
     depends_on:
-      - redis
-      - auth-service
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
 
   # === Frontend ===
   frontend-login:
@@ -170,7 +223,8 @@ services:
     ports:
       - "3001:80"
     depends_on:
-      - gateway
+      gateway:
+        condition: service_healthy
 
   frontend-admin:
     build:
@@ -179,7 +233,8 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      - gateway
+      gateway:
+        condition: service_healthy
 
   # === Dev mail catcher ===
   mailhog:
@@ -187,6 +242,11 @@ services:
     ports:
       - "1025:1025"
       - "8025:8025"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8025"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   pgdata:
